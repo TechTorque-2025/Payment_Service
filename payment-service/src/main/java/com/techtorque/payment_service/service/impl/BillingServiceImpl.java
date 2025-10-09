@@ -7,7 +7,11 @@ import com.techtorque.payment_service.repository.PaymentRepository;
 import com.techtorque.payment_service.service.BillingService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient; // For external API calls
+
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -41,5 +45,40 @@ public class BillingServiceImpl implements BillingService {
     //    - If failed, update the Payment status to FAILED.
     // 5. All these database updates must happen within this single @Transactional method.
     return null;
+  }
+
+  @Override
+  public List<Payment> getPaymentHistoryForCustomer(String customerId) {
+    return List.of();
+  }
+
+  @Override
+  public Optional<Payment> getPaymentDetails(String paymentId, String userId) {
+    return Optional.empty();
+  }
+
+  @Override
+  public Object schedulePayment(String customerId) {
+    return null;
+  }
+
+  @Override
+  public List<Invoice> listInvoicesForCustomer(String customerId) {
+    return List.of();
+  }
+
+  @Override
+  public void sendInvoice(String invoiceId, String email) {
+
+  }
+
+  @Override
+  public Object initiatePayment(String invoiceId) {
+    return null;
+  }
+
+  @Override
+  public void verifyAndProcessNotification(MultiValueMap<String, String> formData) {
+
   }
 }

@@ -2,6 +2,7 @@ package com.techtorque.payment_service.service;
 
 import com.techtorque.payment_service.entity.Invoice;
 import com.techtorque.payment_service.entity.Payment;
+import org.springframework.util.MultiValueMap; // Import this
 import java.util.List;
 import java.util.Optional;
 
@@ -15,9 +16,13 @@ public interface BillingService {
 
   Optional<Payment> getPaymentDetails(String paymentId, String userId);
 
-  Object schedulePayment(/* SchedulePaymentDto dto, */ String customerId); // Return type could be a Schedule DTO
+  Object schedulePayment(/* SchedulePaymentDto dto, */ String customerId);
 
   List<Invoice> listInvoicesForCustomer(String customerId);
 
   void sendInvoice(String invoiceId, String email);
+
+  Object initiatePayment(String invoiceId);
+
+  void verifyAndProcessNotification(MultiValueMap<String, String> formData);
 }
