@@ -1,5 +1,7 @@
 # 💳 Payment & Billing Service
 
+[![Build and Test Payment Service](https://github.com/TechTorque-2025/Payment_Service/actions/workflows/buildtest.yaml/badge.svg)](https://github.com/TechTorque-2025/Payment_Service/actions/workflows/buildtest.yaml)
+
 This microservice handles all financial transactions, including invoice generation and payment processing via the external PayHere gateway.
 
 **Assigned Team:** Rothila, Dinith
