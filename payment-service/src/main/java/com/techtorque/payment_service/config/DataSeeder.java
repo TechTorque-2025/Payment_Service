@@ -25,10 +25,11 @@ import java.util.List;
 @Slf4j
 public class DataSeeder {
 
-    // Consistent UUIDs for cross-service references (matching Auth Service seed data)
-    private static final String CUSTOMER_1_ID = "00000000-0000-0000-0000-000000000101";
-    private static final String CUSTOMER_2_ID = "00000000-0000-0000-0000-000000000102";
-    private static final String EMPLOYEE_1_ID = "00000000-0000-0000-0000-000000000003";
+    // Consistent usernames for cross-service references (matching Auth Service seed data)
+    // Gateway forwards X-User-Subject header with USERNAME values
+    private static final String CUSTOMER_1_ID = "customer";
+    private static final String CUSTOMER_2_ID = "testuser";
+    private static final String EMPLOYEE_1_ID = "employee";
 
     // Service/Project IDs (should match Service Management seed data)
     private static final String SERVICE_1_ID = "SRV-001";
