@@ -1,5 +1,7 @@
 package com.techtorque.payment_service.service;
 
+import com.techtorque.payment_service.dto.PaymentInitiationDto;
+import com.techtorque.payment_service.dto.PaymentInitiationResponseDto;
 import com.techtorque.payment_service.entity.Invoice;
 import com.techtorque.payment_service.entity.Payment;
 import org.springframework.util.MultiValueMap; // Import this
@@ -25,4 +27,6 @@ public interface BillingService {
   Object initiatePayment(String invoiceId);
 
   void verifyAndProcessNotification(MultiValueMap<String, String> formData);
+
+  PaymentInitiationResponseDto initiatePayHerePayment(PaymentInitiationDto dto);
 }

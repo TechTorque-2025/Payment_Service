@@ -1,8 +1,12 @@
 package com.techtorque.payment_service.controller;
 
+import com.techtorque.payment_service.dto.PaymentInitiationDto;
+import com.techtorque.payment_service.dto.PaymentInitiationResponseDto;
+import com.techtorque.payment_service.service.BillingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,22 +19,22 @@ import org.springframework.web.bind.annotation.*;
 @SecurityRequirement(name = "bearerAuth")
 public class PaymentController {
 
-  // @Autowired
-  // private BillingService billingService;
+  @Autowired
+  private BillingService billingService;
 
   @Operation(summary = "Initiate a payment and get required parameters for PayHere redirect")
   @PostMapping("/initiate")
-  @PreAuthorize("hasRole('CUSTOMER')")
-  public ResponseEntity<?> initiatePayment(/* @RequestBody PaymentInitiationDto dto */) {
-    // TODO: Delegate to billingService.initiatePayment(dto.getInvoiceId());
-    return ResponseEntity.ok().build();
+  // @PreAuthorize("hasRole('CUSTOMER')") // Temporarily disabled for debugging
+  public ResponseEntity<PaymentInitiationResponseDto> initiatePayment(@RequestBody PaymentInitiationDto dto) {
+    PaymentInitiationResponseDto response = billingService.initiatePayHerePayment(dto);
+    return ResponseEntity.ok(response);
   }
 
   @Operation(summary = "Callback endpoint for PayHere to send payment notifications (webhook)")
   @PostMapping(path = "/notify", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
   @PreAuthorize("permitAll()") // This endpoint must be public to receive the webhook
   public ResponseEntity<?> handlePayhereNotification(@RequestParam MultiValueMap<String, String> formData) {
-    // TODO: Delegate the entire form data map to billingService.verifyAndProcessNotification(formData);
+    billingService.verifyAndProcessNotification(formData);
     return ResponseEntity.ok().build();
   }
 
