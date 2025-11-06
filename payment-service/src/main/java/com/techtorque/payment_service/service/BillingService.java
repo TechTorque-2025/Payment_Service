@@ -22,6 +22,8 @@ public interface BillingService {
   InvoiceResponseDto getInvoiceById(String invoiceId, String userId);
   
   List<InvoiceResponseDto> listInvoicesForCustomer(String customerId);
+  
+  List<InvoiceResponseDto> listAllInvoices(); // For admin/employee to see all invoices
 
   void sendInvoice(String invoiceId, String email);
 

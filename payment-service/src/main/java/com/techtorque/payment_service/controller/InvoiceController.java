@@ -47,10 +47,20 @@ public class InvoiceController {
 
   @Operation(summary = "List invoices for the current customer")
   @GetMapping
-  @PreAuthorize("hasRole('CUSTOMER')")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'EMPLOYEE', 'ADMIN')")
   public ResponseEntity<List<InvoiceResponseDto>> listInvoices(
-          @RequestHeader("X-User-Subject") String customerId) {
-    List<InvoiceResponseDto> invoices = billingService.listInvoicesForCustomer(customerId);
+          @RequestHeader("X-User-Subject") String userId,
+          @RequestHeader(value = "X-User-Roles", required = false) String userRoles) {
+    
+    List<InvoiceResponseDto> invoices;
+    
+    // Admin and Employee can see all invoices, Customer sees only their own
+    if (userRoles != null && (userRoles.contains("ADMIN") || userRoles.contains("EMPLOYEE"))) {
+      invoices = billingService.listAllInvoices();
+    } else {
+      invoices = billingService.listInvoicesForCustomer(userId);
+    }
+    
     return ResponseEntity.ok(invoices);
   }
 

@@ -143,6 +143,17 @@ public class BillingServiceImpl implements BillingService {
   }
 
   @Override
+  @Transactional(readOnly = true)
+  public List<InvoiceResponseDto> listAllInvoices() {
+    log.info("Listing all invoices (admin/employee access)");
+    
+    List<Invoice> invoices = invoiceRepository.findAll();
+    return invoices.stream()
+        .map(this::mapToInvoiceResponseDto)
+        .collect(Collectors.toList());
+  }
+
+  @Override
   public void sendInvoice(String invoiceId, String email) {
     log.info("Sending invoice {} to email: {}", invoiceId, email);
     
