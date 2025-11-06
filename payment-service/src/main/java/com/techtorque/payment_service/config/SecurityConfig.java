@@ -32,22 +32,18 @@ public class SecurityConfig {
 
             // Set session management to STATELESS
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            
+
             // Explicitly disable form login and HTTP Basic authentication
             .formLogin(formLogin -> formLogin.disable())
             .httpBasic(httpBasic -> httpBasic.disable())
-            
-            // Set up authorization rules
+
+            // TEMPORARILY DISABLE ALL SECURITY FOR DEBUGGING
             .authorizeHttpRequests(authz -> authz
-                // Permit all requests to the Swagger UI and API docs paths
-                .requestMatchers(SWAGGER_WHITELIST).permitAll()
-                
-                // All other requests must be authenticated
-                .anyRequest().authenticated()
-            )
+                .anyRequest().permitAll()
+            );
 
             // Add our custom filter to read headers from the Gateway
-            .addFilterBefore(new GatewayHeaderFilter(), UsernamePasswordAuthenticationFilter.class);
+            // .addFilterBefore(new GatewayHeaderFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
