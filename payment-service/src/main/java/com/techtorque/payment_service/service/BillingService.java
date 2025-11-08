@@ -1,28 +1,46 @@
 package com.techtorque.payment_service.service;
 
-import com.techtorque.payment_service.entity.Invoice;
-import com.techtorque.payment_service.entity.Payment;
-import org.springframework.util.MultiValueMap; // Import this
+import com.techtorque.payment_service.dto.request.CreateInvoiceDto;
+import com.techtorque.payment_service.dto.request.PaymentRequestDto;
+import com.techtorque.payment_service.dto.request.SchedulePaymentDto;
+import com.techtorque.payment_service.dto.response.InvoiceResponseDto;
+import com.techtorque.payment_service.dto.response.PaymentResponseDto;
+import com.techtorque.payment_service.dto.response.ScheduledPaymentResponseDto;
+import com.techtorque.payment_service.dto.PaymentInitiationDto;
+import com.techtorque.payment_service.dto.PaymentInitiationResponseDto;
+import org.springframework.util.MultiValueMap;
+
 import java.util.List;
-import java.util.Optional;
 
 public interface BillingService {
 
-  Invoice createInvoiceForService(String serviceId, String customerId /*, other details */);
+  // Invoice operations
+  InvoiceResponseDto createInvoice(CreateInvoiceDto dto);
+  
+  InvoiceResponseDto createInvoiceForService(String serviceId, String customerId, CreateInvoiceDto dto);
 
-  Payment processPayment(/* PaymentRequestDto dto, */ String customerId);
-
-  List<Payment> getPaymentHistoryForCustomer(String customerId);
-
-  Optional<Payment> getPaymentDetails(String paymentId, String userId);
-
-  Object schedulePayment(/* SchedulePaymentDto dto, */ String customerId);
-
-  List<Invoice> listInvoicesForCustomer(String customerId);
+  InvoiceResponseDto getInvoiceById(String invoiceId, String userId);
+  
+  List<InvoiceResponseDto> listInvoicesForCustomer(String customerId);
+  
+  List<InvoiceResponseDto> listAllInvoices(); // For admin/employee to see all invoices
 
   void sendInvoice(String invoiceId, String email);
 
-  Object initiatePayment(String invoiceId);
+  // Payment operations
+  PaymentResponseDto processPayment(PaymentRequestDto dto, String customerId);
 
+  List<PaymentResponseDto> getPaymentHistoryForCustomer(String customerId);
+
+  PaymentResponseDto getPaymentDetails(String paymentId, String userId);
+
+  // Scheduled payment operations
+  ScheduledPaymentResponseDto schedulePayment(SchedulePaymentDto dto, String customerId);
+  
+  List<ScheduledPaymentResponseDto> getScheduledPaymentsForCustomer(String customerId);
+
+  // PayHere integration
+  PaymentInitiationResponseDto initiatePayHerePayment(PaymentInitiationDto dto);
+  
   void verifyAndProcessNotification(MultiValueMap<String, String> formData);
 }
