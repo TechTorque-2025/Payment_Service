@@ -289,22 +289,34 @@ public class BillingServiceImpl implements BillingService {
 
   @Override
   public PaymentInitiationResponseDto initiatePayHerePayment(PaymentInitiationDto dto) {
-    log.info("Initiating PayHere payment for order: {}", dto.getOrderId());
-    
+    log.info("Initiating PayHere payment for invoice: {}", dto.getInvoiceId());
+
     // Format amount to 2 decimal places as per PayHere requirements
     String formattedAmount = String.format("%.2f", dto.getAmount());
 
     // Generate hash according to PayHere documentation:
     // Hash = MD5(merchant_id + order_id + amount + currency + MD5(merchant_secret).toUpperCase()).toUpperCase()
+    log.info("DEBUG - Merchant ID: {}", payHereConfig.getMerchantId());
+    log.info("DEBUG - Order ID: {}", dto.getInvoiceId());
+    log.info("DEBUG - Formatted Amount: {}", formattedAmount);
+    log.info("DEBUG - Currency: {}", dto.getCurrency());
+    log.info("DEBUG - Merchant Secret (first 10 chars): {}", payHereConfig.getMerchantSecret().substring(0, Math.min(10, payHereConfig.getMerchantSecret().length())));
+
+    // Use merchant secret as-is (without base64 decoding)
     String hashedSecret = PayHereHashUtil.getMd5(payHereConfig.getMerchantSecret());
-    String hashString = payHereConfig.getMerchantId() + dto.getOrderId() +
+    log.info("DEBUG - Hashed Secret: {}", hashedSecret);
+
+    String hashString = payHereConfig.getMerchantId() + dto.getInvoiceId() +
                        formattedAmount + dto.getCurrency() + hashedSecret;
+    log.info("DEBUG - Hash String: {}", hashString);
+
     String hash = PayHereHashUtil.getMd5(hashString);
+    log.info("DEBUG - Final Hash: {}", hash);
 
     // Build response with all PayHere required parameters
     PaymentInitiationResponseDto response = new PaymentInitiationResponseDto();
     response.setMerchantId(payHereConfig.getMerchantId());
-    response.setOrderId(dto.getOrderId());
+    response.setOrderId(dto.getInvoiceId());  // Using invoiceId as orderId for PayHere
     response.setAmount(new BigDecimal(formattedAmount));
     response.setCurrency(dto.getCurrency());
     response.setHash(hash);
@@ -322,16 +334,16 @@ public class BillingServiceImpl implements BillingService {
 
     // Create Payment entity with PENDING status
     Payment payment = Payment.builder()
-        .invoiceId(dto.getOrderId()) // Using orderId as invoiceId
+        .invoiceId(dto.getInvoiceId())
         .customerId(dto.getCustomerEmail()) // Using email as temporary customer ID
         .amount(new BigDecimal(formattedAmount))
         .method(PaymentMethod.CARD)
         .status(PaymentStatus.PENDING)
         .build();
-    
+
     paymentRepository.save(payment);
 
-    log.info("PayHere payment initiated for order: {}", dto.getOrderId());
+    log.info("PayHere payment initiated for invoice: {}", dto.getInvoiceId());
     return response;
   }
 
@@ -420,32 +432,55 @@ public class BillingServiceImpl implements BillingService {
   private InvoiceResponseDto mapToInvoiceResponseDto(Invoice invoice) {
     // Fetch invoice items
     List<InvoiceItem> items = invoiceItemRepository.findByInvoiceId(invoice.getId());
-    
+
     // Calculate total paid
     List<Payment> successfulPayments = paymentRepository.findByInvoiceId(invoice.getId())
         .stream()
         .filter(p -> p.getStatus() == PaymentStatus.SUCCESS)
         .collect(Collectors.toList());
-    
-    BigDecimal totalPaid = successfulPayments.stream()
+
+    BigDecimal paidAmount = successfulPayments.stream()
         .map(Payment::getAmount)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
-    
-    BigDecimal balance = invoice.getAmount().subtract(totalPaid);
-    
+
+    BigDecimal balanceAmount = invoice.getAmount().subtract(paidAmount);
+
+    // Calculate subtotal (sum of all items), tax and discount are 0 for now
+    BigDecimal subtotal = items.stream()
+        .map(InvoiceItem::getTotalPrice)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    // Find the latest successful payment for paidAt timestamp
+    java.time.LocalDateTime paidAt = successfulPayments.stream()
+        .map(Payment::getCreatedAt)
+        .max((a, b) -> a.compareTo(b))
+        .orElse(null);
+
+    // Generate invoice number from ID (INV-{first 8 chars of UUID})
+    String invoiceNumber = "INV-" + invoice.getId().substring(0, 8).toUpperCase();
+
     return InvoiceResponseDto.builder()
         .invoiceId(invoice.getId())
+        .invoiceNumber(invoiceNumber)
         .customerId(invoice.getCustomerId())
-        .serviceOrProjectId(invoice.getServiceOrProjectId())
-        .amount(invoice.getAmount())
+        .customerName(null) // TODO: Fetch from user service
+        .customerEmail(null) // TODO: Fetch from user service
+        .serviceId(invoice.getServiceOrProjectId().startsWith("SRV") ? invoice.getServiceOrProjectId() : null)
+        .projectId(invoice.getServiceOrProjectId().startsWith("PRJ") ? invoice.getServiceOrProjectId() : null)
+        .items(items.stream().map(this::mapToInvoiceItemDto).collect(Collectors.toList()))
+        .subtotal(subtotal)
+        .taxAmount(BigDecimal.ZERO) // TODO: Calculate tax if needed
+        .discountAmount(BigDecimal.ZERO) // TODO: Calculate discount if needed
+        .totalAmount(invoice.getAmount())
+        .paidAmount(paidAmount)
+        .balanceAmount(balanceAmount)
         .status(invoice.getStatus())
-        .issueDate(invoice.getIssueDate())
+        .notes(invoice.getNotes())
         .dueDate(invoice.getDueDate())
+        .issuedAt(invoice.getIssueDate() != null ? invoice.getIssueDate().atStartOfDay() : null)
+        .paidAt(paidAt)
         .createdAt(invoice.getCreatedAt())
         .updatedAt(invoice.getUpdatedAt())
-        .items(items.stream().map(this::mapToInvoiceItemDto).collect(Collectors.toList()))
-        .totalPaid(totalPaid)
-        .balance(balance)
         .build();
   }
 
