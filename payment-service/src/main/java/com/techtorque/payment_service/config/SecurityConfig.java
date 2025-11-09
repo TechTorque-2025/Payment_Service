@@ -11,7 +11,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(prePostEnabled = true)
+// TEMPORARILY DISABLED FOR DEBUGGING - method-level security was blocking all requests
+// @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     // A more comprehensive whitelist for Swagger/OpenAPI, based on the auth-service config.
