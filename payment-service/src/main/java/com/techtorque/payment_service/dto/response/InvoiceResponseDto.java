@@ -17,15 +17,24 @@ import java.util.List;
 @AllArgsConstructor
 public class InvoiceResponseDto {
     private String invoiceId;
+    private String invoiceNumber;
     private String customerId;
-    private String serviceOrProjectId;
-    private BigDecimal amount;
+    private String customerName;
+    private String customerEmail;
+    private String serviceId;
+    private String projectId;
+    private List<InvoiceItemDto> items;
+    private BigDecimal subtotal;
+    private BigDecimal taxAmount;
+    private BigDecimal discountAmount;
+    private BigDecimal totalAmount;
+    private BigDecimal paidAmount;
+    private BigDecimal balanceAmount;
     private InvoiceStatus status;
-    private LocalDate issueDate;
+    private String notes;
     private LocalDate dueDate;
+    private LocalDateTime issuedAt;
+    private LocalDateTime paidAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private List<InvoiceItemDto> items;
-    private BigDecimal totalPaid;
-    private BigDecimal balance;
 }
