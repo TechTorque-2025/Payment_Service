@@ -57,7 +57,30 @@ public class Invoice {
   
   @Column(length = 2000)
   private String notes;
-  
+
+  // Part-payment tracking
+  @Column(nullable = false)
+  @Builder.Default
+  private Boolean requiresDeposit = false;
+
+  @Column(precision = 10, scale = 2)
+  private BigDecimal depositAmount; // 50% deposit
+
+  @Column(precision = 10, scale = 2)
+  private BigDecimal depositPaid;
+
+  @Column
+  private LocalDateTime depositPaidAt;
+
+  @Column(precision = 10, scale = 2)
+  private BigDecimal finalAmount; // 50% final payment
+
+  @Column(precision = 10, scale = 2)
+  private BigDecimal finalPaid;
+
+  @Column
+  private LocalDateTime finalPaidAt;
+
   @PrePersist
   protected void onCreate() {
     createdAt = LocalDateTime.now();
