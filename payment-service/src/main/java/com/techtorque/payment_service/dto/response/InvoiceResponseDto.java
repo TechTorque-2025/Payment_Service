@@ -37,4 +37,13 @@ public class InvoiceResponseDto {
     private LocalDateTime paidAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Part-payment fields
+    private Boolean requiresDeposit;
+    private BigDecimal depositAmount;
+    private BigDecimal depositPaid;
+    private LocalDateTime depositPaidAt;
+    private BigDecimal finalAmount;
+    private BigDecimal finalPaid;
+    private LocalDateTime finalPaidAt;
 }
