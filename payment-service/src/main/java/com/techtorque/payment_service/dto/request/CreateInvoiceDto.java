@@ -26,9 +26,12 @@ public class CreateInvoiceDto {
     private List<InvoiceItemRequest> items;
     
     private LocalDate dueDate;
-    
+
     private String notes;
-    
+
+    // Part-payment option - if true, invoice will require 50% deposit before work and 50% after
+    private Boolean requiresDeposit;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
