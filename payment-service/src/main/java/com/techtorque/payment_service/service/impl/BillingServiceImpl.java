@@ -63,22 +63,39 @@ public class BillingServiceImpl implements BillingService {
   public InvoiceResponseDto createInvoice(CreateInvoiceDto dto) {
     log.info("Creating invoice for customer: {}", dto.getCustomerId());
     
-    // Create invoice entity
-    Invoice invoice = Invoice.builder()
-        .customerId(dto.getCustomerId())
-        .serviceOrProjectId(dto.getServiceOrProjectId())
-        .status(InvoiceStatus.DRAFT)
-        .dueDate(dto.getDueDate() != null ? dto.getDueDate() : LocalDate.now().plusDays(30))
-        .notes(dto.getNotes())
-        .build();
-    
     // Calculate total from items
     BigDecimal total = BigDecimal.ZERO;
     for (CreateInvoiceDto.InvoiceItemRequest itemDto : dto.getItems()) {
       BigDecimal itemTotal = itemDto.getUnitPrice().multiply(BigDecimal.valueOf(itemDto.getQuantity()));
       total = total.add(itemTotal);
     }
-    invoice.setAmount(total);
+
+    // Setup part-payment if required
+    Boolean requiresDeposit = dto.getRequiresDeposit() != null && dto.getRequiresDeposit();
+    BigDecimal depositAmount = null;
+    BigDecimal finalAmount = null;
+
+    if (requiresDeposit) {
+      // Calculate 50-50 split
+      depositAmount = total.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+      finalAmount = total.subtract(depositAmount);
+      log.info("Part-payment invoice: Deposit={}, Final={}", depositAmount, finalAmount);
+    }
+
+    // Create invoice entity
+    Invoice invoice = Invoice.builder()
+        .customerId(dto.getCustomerId())
+        .serviceOrProjectId(dto.getServiceOrProjectId())
+        .status(InvoiceStatus.DRAFT)
+        .amount(total)
+        .dueDate(dto.getDueDate() != null ? dto.getDueDate() : LocalDate.now().plusDays(30))
+        .notes(dto.getNotes())
+        .requiresDeposit(requiresDeposit)
+        .depositAmount(depositAmount)
+        .depositPaid(requiresDeposit ? BigDecimal.ZERO : null)
+        .finalAmount(finalAmount)
+        .finalPaid(requiresDeposit ? BigDecimal.ZERO : null)
+        .build();
     
     // Save invoice first
     invoice = invoiceRepository.save(invoice);
@@ -201,17 +218,24 @@ public class BillingServiceImpl implements BillingService {
         .status(PaymentStatus.PENDING)
         .build();
     
-    // For CASH or BANK_TRANSFER, immediately mark as SUCCESS
+    // For CASH or BANK_TRANSFER or ONLINE, immediately mark as SUCCESS
     // For CARD, would normally integrate with payment gateway
-    if (dto.getMethod() == PaymentMethod.CASH || dto.getMethod() == PaymentMethod.BANK_TRANSFER) {
+    if (dto.getMethod() == PaymentMethod.CASH ||
+        dto.getMethod() == PaymentMethod.BANK_TRANSFER ||
+        dto.getMethod() == PaymentMethod.ONLINE) {
       payment.setStatus(PaymentStatus.SUCCESS);
-      
+
+      // Handle part-payment tracking
+      if (Boolean.TRUE.equals(invoice.getRequiresDeposit())) {
+        handlePartPayment(invoice, dto.getAmount());
+      }
+
       // Update invoice status
       updateInvoiceStatus(invoice, dto.getAmount());
     }
-    
+
     payment = paymentRepository.save(payment);
-    
+
     log.info("Payment processed successfully: {}", payment.getId());
     return mapToPaymentResponseDto(payment);
   }
@@ -289,23 +313,24 @@ public class BillingServiceImpl implements BillingService {
 
   @Override
   public PaymentInitiationResponseDto initiatePayHerePayment(PaymentInitiationDto dto) {
-    log.info("Initiating PayHere payment for order: {}", dto.getOrderId());
-    
-    // Format amount to 2 decimal places as per PayHere requirements
-    String formattedAmount = String.format("%.2f", dto.getAmount());
+    log.info("Initiating PayHere payment for invoice: {}", dto.getInvoiceId());
 
-    // Generate hash according to PayHere documentation:
-    // Hash = MD5(merchant_id + order_id + amount + currency + MD5(merchant_secret).toUpperCase()).toUpperCase()
-    String hashedSecret = PayHereHashUtil.getMd5(payHereConfig.getMerchantSecret());
-    String hashString = payHereConfig.getMerchantId() + dto.getOrderId() +
-                       formattedAmount + dto.getCurrency() + hashedSecret;
-    String hash = PayHereHashUtil.getMd5(hashString);
+    // Generate payment hash using utility method
+    String hash = PayHereHashUtil.generatePaymentHash(
+        payHereConfig.getMerchantId(),
+        dto.getInvoiceId(),  // Using invoiceId as orderId
+        dto.getAmount(),
+        dto.getCurrency(),
+        payHereConfig.getMerchantSecret()
+    );
+
+    log.info("PayHere payment hash generated for order: {}", dto.getInvoiceId());
 
     // Build response with all PayHere required parameters
     PaymentInitiationResponseDto response = new PaymentInitiationResponseDto();
     response.setMerchantId(payHereConfig.getMerchantId());
-    response.setOrderId(dto.getOrderId());
-    response.setAmount(new BigDecimal(formattedAmount));
+    response.setOrderId(dto.getInvoiceId());  // Using invoiceId as orderId for PayHere
+    response.setAmount(dto.getAmount());
     response.setCurrency(dto.getCurrency());
     response.setHash(hash);
     response.setItemDescription(dto.getItemDescription());
@@ -322,16 +347,16 @@ public class BillingServiceImpl implements BillingService {
 
     // Create Payment entity with PENDING status
     Payment payment = Payment.builder()
-        .invoiceId(dto.getOrderId()) // Using orderId as invoiceId
+        .invoiceId(dto.getInvoiceId())
         .customerId(dto.getCustomerEmail()) // Using email as temporary customer ID
-        .amount(new BigDecimal(formattedAmount))
+        .amount(dto.getAmount())
         .method(PaymentMethod.CARD)
         .status(PaymentStatus.PENDING)
         .build();
-    
+
     paymentRepository.save(payment);
 
-    log.info("PayHere payment initiated for order: {}", dto.getOrderId());
+    log.info("PayHere payment initiated for invoice: {}", dto.getInvoiceId());
     return response;
   }
 
@@ -396,6 +421,53 @@ public class BillingServiceImpl implements BillingService {
 
   // Helper methods
 
+  /**
+   * Handle part-payment tracking for invoices requiring deposit
+   * Tracks deposit (50%) and final payment (50%)
+   */
+  private void handlePartPayment(Invoice invoice, BigDecimal paymentAmount) {
+    if (invoice.getDepositPaid() == null) {
+      invoice.setDepositPaid(BigDecimal.ZERO);
+    }
+    if (invoice.getFinalPaid() == null) {
+      invoice.setFinalPaid(BigDecimal.ZERO);
+    }
+
+    // Check if deposit is not fully paid
+    BigDecimal depositRemaining = invoice.getDepositAmount().subtract(invoice.getDepositPaid());
+    if (depositRemaining.compareTo(BigDecimal.ZERO) > 0) {
+      // Apply payment to deposit
+      BigDecimal depositPayment = paymentAmount.min(depositRemaining);
+      invoice.setDepositPaid(invoice.getDepositPaid().add(depositPayment));
+
+      if (invoice.getDepositPaid().compareTo(invoice.getDepositAmount()) >= 0) {
+        invoice.setDepositPaidAt(java.time.LocalDateTime.now());
+        log.info("Deposit fully paid for invoice: {}", invoice.getId());
+      }
+
+      // If there's remaining payment, apply to final amount
+      BigDecimal remainingPayment = paymentAmount.subtract(depositPayment);
+      if (remainingPayment.compareTo(BigDecimal.ZERO) > 0) {
+        invoice.setFinalPaid(invoice.getFinalPaid().add(remainingPayment));
+
+        if (invoice.getFinalPaid().compareTo(invoice.getFinalAmount()) >= 0) {
+          invoice.setFinalPaidAt(java.time.LocalDateTime.now());
+          log.info("Final payment completed for invoice: {}", invoice.getId());
+        }
+      }
+    } else {
+      // Deposit already paid, apply to final amount
+      invoice.setFinalPaid(invoice.getFinalPaid().add(paymentAmount));
+
+      if (invoice.getFinalPaid().compareTo(invoice.getFinalAmount()) >= 0) {
+        invoice.setFinalPaidAt(java.time.LocalDateTime.now());
+        log.info("Final payment completed for invoice: {}", invoice.getId());
+      }
+    }
+
+    invoiceRepository.save(invoice);
+  }
+
   private void updateInvoiceStatus(Invoice invoice, BigDecimal paymentAmount) {
     // Calculate total paid
     List<Payment> successfulPayments = paymentRepository.findByInvoiceId(invoice.getId())
@@ -420,32 +492,63 @@ public class BillingServiceImpl implements BillingService {
   private InvoiceResponseDto mapToInvoiceResponseDto(Invoice invoice) {
     // Fetch invoice items
     List<InvoiceItem> items = invoiceItemRepository.findByInvoiceId(invoice.getId());
-    
+
     // Calculate total paid
     List<Payment> successfulPayments = paymentRepository.findByInvoiceId(invoice.getId())
         .stream()
         .filter(p -> p.getStatus() == PaymentStatus.SUCCESS)
         .collect(Collectors.toList());
-    
-    BigDecimal totalPaid = successfulPayments.stream()
+
+    BigDecimal paidAmount = successfulPayments.stream()
         .map(Payment::getAmount)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
-    
-    BigDecimal balance = invoice.getAmount().subtract(totalPaid);
-    
+
+    BigDecimal balanceAmount = invoice.getAmount().subtract(paidAmount);
+
+    // Calculate subtotal (sum of all items), tax and discount are 0 for now
+    BigDecimal subtotal = items.stream()
+        .map(InvoiceItem::getTotalPrice)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    // Find the latest successful payment for paidAt timestamp
+    java.time.LocalDateTime paidAt = successfulPayments.stream()
+        .map(Payment::getCreatedAt)
+        .max((a, b) -> a.compareTo(b))
+        .orElse(null);
+
+    // Generate invoice number from ID (INV-{first 8 chars of UUID})
+    String invoiceNumber = "INV-" + invoice.getId().substring(0, 8).toUpperCase();
+
     return InvoiceResponseDto.builder()
         .invoiceId(invoice.getId())
+        .invoiceNumber(invoiceNumber)
         .customerId(invoice.getCustomerId())
-        .serviceOrProjectId(invoice.getServiceOrProjectId())
-        .amount(invoice.getAmount())
+        .customerName(null) // TODO: Fetch from user service
+        .customerEmail(null) // TODO: Fetch from user service
+        .serviceId(invoice.getServiceOrProjectId().startsWith("SRV") ? invoice.getServiceOrProjectId() : null)
+        .projectId(invoice.getServiceOrProjectId().startsWith("PRJ") ? invoice.getServiceOrProjectId() : null)
+        .items(items.stream().map(this::mapToInvoiceItemDto).collect(Collectors.toList()))
+        .subtotal(subtotal)
+        .taxAmount(BigDecimal.ZERO) // TODO: Calculate tax if needed
+        .discountAmount(BigDecimal.ZERO) // TODO: Calculate discount if needed
+        .totalAmount(invoice.getAmount())
+        .paidAmount(paidAmount)
+        .balanceAmount(balanceAmount)
         .status(invoice.getStatus())
-        .issueDate(invoice.getIssueDate())
+        .notes(invoice.getNotes())
         .dueDate(invoice.getDueDate())
+        .issuedAt(invoice.getIssueDate() != null ? invoice.getIssueDate().atStartOfDay() : null)
+        .paidAt(paidAt)
         .createdAt(invoice.getCreatedAt())
         .updatedAt(invoice.getUpdatedAt())
-        .items(items.stream().map(this::mapToInvoiceItemDto).collect(Collectors.toList()))
-        .totalPaid(totalPaid)
-        .balance(balance)
+        // Part-payment fields
+        .requiresDeposit(invoice.getRequiresDeposit())
+        .depositAmount(invoice.getDepositAmount())
+        .depositPaid(invoice.getDepositPaid())
+        .depositPaidAt(invoice.getDepositPaidAt())
+        .finalAmount(invoice.getFinalAmount())
+        .finalPaid(invoice.getFinalPaid())
+        .finalPaidAt(invoice.getFinalPaidAt())
         .build();
   }
 
