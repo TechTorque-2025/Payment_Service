@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaymentInitiationDto {
-    private String orderId;
+    private String invoiceId;  // Changed from orderId to match frontend
     private BigDecimal amount;
     private String currency;
     private String itemDescription;

@@ -18,10 +18,10 @@ import java.util.List;
 
 /**
  * Data seeder for Payment Service - seeds sample invoices, payments, and scheduled payments
- * Only runs in 'dev' profile to avoid polluting production data
+ * DISABLED - Change profile to "dev" to enable seed data
  */
 @Configuration
-@Profile("dev")
+@Profile("seed-data-disabled")  // Changed from "dev" to disable
 @Slf4j
 public class DataSeeder {
 

@@ -28,7 +28,7 @@ public class InvoiceController {
 
   @Operation(summary = "Create a new invoice")
   @PostMapping
-  @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN', 'SUPER_ADMIN')")
   public ResponseEntity<InvoiceResponseDto> createInvoice(
           @Valid @RequestBody CreateInvoiceDto dto) {
     InvoiceResponseDto invoice = billingService.createInvoice(dto);
@@ -37,7 +37,7 @@ public class InvoiceController {
 
   @Operation(summary = "Get invoice by ID")
   @GetMapping("/{invoiceId}")
-  @PreAuthorize("hasAnyRole('CUSTOMER', 'EMPLOYEE', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'EMPLOYEE', 'ADMIN', 'SUPER_ADMIN')")
   public ResponseEntity<InvoiceResponseDto> getInvoice(
           @PathVariable String invoiceId,
           @RequestHeader("X-User-Subject") String userId) {
@@ -47,26 +47,26 @@ public class InvoiceController {
 
   @Operation(summary = "List invoices for the current customer")
   @GetMapping
-  @PreAuthorize("hasAnyRole('CUSTOMER', 'EMPLOYEE', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'EMPLOYEE', 'ADMIN', 'SUPER_ADMIN')")
   public ResponseEntity<List<InvoiceResponseDto>> listInvoices(
           @RequestHeader("X-User-Subject") String userId,
           @RequestHeader(value = "X-User-Roles", required = false) String userRoles) {
-    
+
     List<InvoiceResponseDto> invoices;
-    
-    // Admin and Employee can see all invoices, Customer sees only their own
-    if (userRoles != null && (userRoles.contains("ADMIN") || userRoles.contains("EMPLOYEE"))) {
+
+    // Admin, Super Admin and Employee can see all invoices, Customer sees only their own
+    if (userRoles != null && (userRoles.contains("ADMIN") || userRoles.contains("SUPER_ADMIN") || userRoles.contains("EMPLOYEE"))) {
       invoices = billingService.listAllInvoices();
     } else {
       invoices = billingService.listInvoicesForCustomer(userId);
     }
-    
+
     return ResponseEntity.ok(invoices);
   }
 
   @Operation(summary = "Send an invoice to a customer via email (employee/admin only)")
   @PostMapping("/{invoiceId}/send")
-  @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN', 'SUPER_ADMIN')")
   public ResponseEntity<Map<String, String>> sendInvoiceByEmail(
           @PathVariable String invoiceId,
           @Valid @RequestBody SendInvoiceDto dto) {

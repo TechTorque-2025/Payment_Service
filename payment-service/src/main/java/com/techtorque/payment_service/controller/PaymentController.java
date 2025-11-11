@@ -69,7 +69,7 @@ public class PaymentController {
 
   @Operation(summary = "Get details for a specific payment")
   @GetMapping("/{paymentId}")
-  @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'SUPER_ADMIN')")
   public ResponseEntity<PaymentResponseDto> getPaymentDetails(
           @PathVariable String paymentId,
           @RequestHeader("X-User-Subject") String userId) {
