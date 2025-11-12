@@ -59,7 +59,7 @@ public class Invoice {
   private String notes;
 
   // Part-payment tracking
-  @Column(nullable = false)
+  @Column(nullable = false, columnDefinition = "boolean default false")
   @Builder.Default
   private Boolean requiresDeposit = false;
 
