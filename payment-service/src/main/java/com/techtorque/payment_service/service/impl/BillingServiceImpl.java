@@ -380,10 +380,28 @@ public class BillingServiceImpl implements BillingService {
     String md5sig = formData.getFirst("md5sig");
     String paymentId = formData.getFirst("payment_id");
 
-    // Generate hash for verification
-    String hashString = merchantId + orderId + payhereAmount + payhereCurrency + 
-                       statusCode + payHereConfig.getMerchantSecret();
-    String generatedHash = PayHereHashUtil.getMd5(hashString);
+    // Format the received amount to 2 decimal places to match how hash was generated
+    String formattedAmount = payhereAmount;
+    try {
+      java.text.DecimalFormat df = new java.text.DecimalFormat("0.00");
+      java.math.BigDecimal bd = new java.math.BigDecimal(payhereAmount);
+      formattedAmount = df.format(bd);
+    } catch (Exception e) {
+      log.warn("Failed to format payhere_amount '{}', using raw value", payhereAmount);
+    }
+
+    // Validate presence of orderId before proceeding
+    if (orderId == null || orderId.isBlank()) {
+      log.warn("Missing order_id in PayHere notification, skipping processing");
+      return;
+    }
+
+    // Generate verification hash according to PayHere docs
+  // md5sig = MD5(merchant_id + order_id + payhere_amount + payhere_currency + status_code + MD5(merchant_secret)).toUpperCase()
+  String hashedSecret = PayHereHashUtil.getMd5(payHereConfig.getMerchantSecret());
+  String hashString = merchantId + orderId + formattedAmount + payhereCurrency + 
+             statusCode + hashedSecret;
+  String generatedHash = PayHereHashUtil.getMd5(hashString);
 
     // Verify signature
     if (!generatedHash.equalsIgnoreCase(md5sig)) {
