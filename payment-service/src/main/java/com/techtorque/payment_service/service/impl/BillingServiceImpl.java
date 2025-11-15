@@ -315,6 +315,13 @@ public class BillingServiceImpl implements BillingService {
   public PaymentInitiationResponseDto initiatePayHerePayment(PaymentInitiationDto dto) {
     log.info("Initiating PayHere payment for invoice: {}", dto.getInvoiceId());
 
+    // Log payment details for debugging
+    log.info("Payment Details - Merchant ID: {}, Order ID: {}, Amount: {}, Currency: {}",
+        payHereConfig.getMerchantId(),
+        dto.getInvoiceId(),
+        dto.getAmount(),
+        dto.getCurrency());
+
     // Generate payment hash using utility method
     String hash = PayHereHashUtil.generatePaymentHash(
         payHereConfig.getMerchantId(),
@@ -324,7 +331,7 @@ public class BillingServiceImpl implements BillingService {
         payHereConfig.getMerchantSecret()
     );
 
-    log.info("PayHere payment hash generated for order: {}", dto.getInvoiceId());
+    log.info("PayHere payment hash generated: {} for order: {}", hash, dto.getInvoiceId());
 
     // Build response with all PayHere required parameters
     PaymentInitiationResponseDto response = new PaymentInitiationResponseDto();
