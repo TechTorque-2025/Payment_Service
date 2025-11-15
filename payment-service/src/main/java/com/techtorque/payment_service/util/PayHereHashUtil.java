@@ -54,18 +54,25 @@ public class PayHereHashUtil {
             // Try to decode as Base64
             byte[] decodedBytes = Base64.getDecoder().decode(merchantSecret);
             decodedSecret = new String(decodedBytes);
+            System.out.println("DEBUG: Merchant secret was Base64 encoded, decoded successfully");
         } catch (IllegalArgumentException e) {
             // If decoding fails, use as-is (it's already plain text)
             decodedSecret = merchantSecret;
+            System.out.println("DEBUG: Merchant secret is plain text (not Base64)");
         }
 
         // Step 1: Hash the merchant secret
         String hashedSecret = getMd5(decodedSecret);
+        System.out.println("DEBUG: Hashed secret: " + hashedSecret);
 
         // Step 2: Concatenate: merchant_id + order_id + amount + currency + hashed_secret
         String concatenated = merchantId + orderId + formattedAmount + currency + hashedSecret;
+        System.out.println("DEBUG: Hash input string: " + concatenated);
 
         // Step 3: Hash the concatenated string
-        return getMd5(concatenated);
+        String finalHash = getMd5(concatenated);
+        System.out.println("DEBUG: Final hash: " + finalHash);
+
+        return finalHash;
     }
 }
